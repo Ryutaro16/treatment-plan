@@ -1,0 +1,1121 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="治療計画">
+<meta name="theme-color" content="#0f766e">
+<title>治療計画</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<style>
+/* 歯式図（上顎・下顎）を中心に、下に1日ごとの治療の順番。狭い画面では歯式図を右側・左側の2枚に分ける */
+:root{
+  --bg:#f3f5f7; --card:#fff; --ink:#1f2933; --sub:#5f6b7a; --line:#d3d9e1; --soft:#eceff3;
+  --accent:#0f766e; --accent-soft:#d6efec; --on-accent:#fff;
+  --done:#16a34a; --done-soft:#dcf3e3; --doing:#2563eb; --doing-soft:#dbe7fd;
+  --next:#b45309; --next-soft:#fdecd3; --ng:#b91c1c; --ng-soft:#fde8e8; --shade:rgba(0,0,0,.35);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#14181d; --card:#1d232a; --ink:#e6eaef; --sub:#9aa5b1; --line:#36404b; --soft:#262d35;
+    --accent:#2dd4bf; --accent-soft:#123b38; --on-accent:#0b1f1d;
+    --done:#4ade80; --done-soft:#163222; --doing:#60a5fa; --doing-soft:#1b2c4a;
+    --next:#fbbf24; --next-soft:#3d2f12; --ng:#fca5a5; --ng-soft:#3f1b1b; --shade:rgba(0,0,0,.55);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14181d; --card:#1d232a; --ink:#e6eaef; --sub:#9aa5b1; --line:#36404b; --soft:#262d35;
+  --accent:#2dd4bf; --accent-soft:#123b38; --on-accent:#0b1f1d;
+  --done:#4ade80; --done-soft:#163222; --doing:#60a5fa; --doing-soft:#1b2c4a;
+  --next:#fbbf24; --next-soft:#3d2f12; --ng:#fca5a5; --ng-soft:#3f1b1b; --shade:rgba(0,0,0,.55);
+  color-scheme:dark;
+}
+/* touch-action:manipulation＝ダブルタップで拡大しない（2本指の拡大はできる）。2回タップで支台歯を選ぶときに画面が拡大しないように */
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+[hidden]{display:none!important}
+html,body{background:var(--bg);color:var(--ink)}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;line-height:1.6;font-size:15px}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#app{max-width:1180px;margin:0 auto;padding-block:12px 80px;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+.top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.top h1{font-size:1.2rem;margin:0}
+.top h1 small,.pname small{font-size:.75rem;color:var(--sub);font-weight:400}
+.top .sp{flex:1}
+.pname{font-weight:700;font-size:1.15rem;min-width:0}
+.pname .meta{font-size:.8rem;color:var(--sub);font-weight:400;margin-left:6px}
+.btn{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 12px;min-height:40px;font-size:.88rem;font-weight:600;white-space:nowrap}
+.panel .btn{min-height:44px}
+.pdel{margin:28px 0 0;text-align:right}
+.panel{scroll-padding-top:64px;scroll-padding-bottom:84px} /* 固定した見出し・下のボタンの裏に、入力欄やボタンが隠れないように */
+.btn.main{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.on{background:var(--ink);color:var(--card);border-color:var(--ink)}
+.btn.danger{color:var(--ng);border-color:var(--ng)}
+.btn.danger.fill{background:var(--ng);color:var(--card)}
+.btn:disabled{opacity:.4}
+.pv{font-size:.8rem;color:var(--sub);margin:0 0 12px}
+.ph{color:var(--sub);font-weight:400}
+/* 歯式の記号（5┘・6┐など） */
+.pals{display:inline-flex;gap:3px;vertical-align:middle;align-items:center}
+.pal{display:inline-flex;align-items:center;gap:2px;padding:0 4px 1px;font-weight:700;line-height:1.2;font-variant-numeric:tabular-nums}
+.pal.q1{border-right:2px solid currentColor;border-bottom:2px solid currentColor}
+.pal.q2{border-left:2px solid currentColor;border-bottom:2px solid currentColor}
+.pal.q4{border-right:2px solid currentColor;border-top:2px solid currentColor}
+.pal.q3{border-left:2px solid currentColor;border-top:2px solid currentColor}
+/* 正中をまたぐときは1本の線でつなぎ、縦線は正中に1本だけ（②1|① の形） */
+.pal.up{border-bottom:2px solid currentColor}
+.pal.lo{border-top:2px solid currentColor}
+.pal .pmid{align-self:stretch;border-left:2px solid currentColor;margin:0 2px}
+.pal .ab{display:inline-grid;place-items:center;width:1.35em;height:1.35em;border:1.5px solid currentColor;border-radius:50%;font-size:.88em}
+/* 患者一覧 */
+.plist{display:grid;gap:10px}
+.banner{display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:var(--next-soft);border:1px solid var(--next);border-radius:12px;padding:10px 12px;margin:0 0 12px;font-size:.9rem}
+.search{display:flex;gap:6px;margin:0 0 10px}
+.search input{flex:1;min-width:0;font:inherit;font-size:16px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink)}
+.recent{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px}
+.recent .btn small{font-weight:400;color:var(--sub);font-size:.75rem}
+.recent .btn{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.vp,.lnb .vp,.chain span,.pcard .pn,.pname,.vb{overflow-wrap:anywhere;min-width:0}
+@media(min-width:700px){.plist{grid-template-columns:1fr 1fr}}
+.pcard{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.pcard .pn{font-weight:700;font-size:1.05rem}
+.pcard .pk{font-size:.8rem;color:var(--sub)}
+.pcard .pp{display:flex;align-items:center;gap:8px;font-size:.82rem;color:var(--sub);margin-top:6px}
+.pcard .px{font-size:.85rem;margin-top:4px}
+.bar{flex:1;max-width:220px;height:6px;background:var(--soft);border-radius:99px;overflow:hidden;display:inline-block}
+.bar i{display:block;height:100%;background:var(--done)}
+/* 次回の帯 */
+.nowbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;font-size:.88rem}
+.nowbar .box{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:5px 10px;display:flex;align-items:center;gap:8px;max-width:100%;text-align:left;flex-wrap:wrap}
+.nowbar button.box.nx{border:2px solid var(--next)}
+.nowbar .k{color:var(--sub);font-size:.78rem;flex:0 0 auto}
+/* 治療工程把握図 */
+.figwrap{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 8px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.fig.full{min-width:700px}
+.fig+.fig{margin-top:14px;padding-top:10px;border-top:1px dashed var(--line)}
+.ftitle{font-size:.75rem;color:var(--sub);font-weight:600;margin:0 0 2px}
+.frow{display:grid;gap:0 3px}
+.frow>*{grid-row:1}
+.full .frow{grid-template-columns:38px repeat(8,minmax(0,1fr)) 4px repeat(8,minmax(0,1fr))}
+.half.r .frow{grid-template-columns:30px repeat(8,minmax(0,1fr)) 4px}
+.half.l .frow{grid-template-columns:30px 4px repeat(8,minmax(0,1fr))}
+.brow{min-height:24px;align-items:end}
+.brow.lo{align-items:start}
+.lab{grid-column:1;color:var(--sub);font-size:.7rem;line-height:1.2;align-self:center}
+.mid{background:var(--ink)}
+.hr{height:2px;background:var(--ink);margin:3px 0}
+.cell{display:flex;flex-direction:column;justify-content:flex-end;gap:3px;min-height:40px;padding:2px 0;min-width:0}
+.cell.cd{justify-content:flex-start}
+.num{border:none;background:none;font-weight:700;font-size:1.05rem;padding:4px 0;min-height:40px;border-radius:6px}
+.num.miss{color:var(--sub);text-decoration:line-through}
+.num:active{background:var(--soft)}
+.stk{display:flex;flex-direction:column;align-items:center;text-align:center;line-height:1.2;font-size:.7rem;border-radius:8px;padding:3px 1px;border:1px solid transparent;background:none;min-width:0;overflow-wrap:anywhere}
+.half .stk{font-size:.72rem}
+@media(min-width:761px){.stk{font-size:.78rem}}
+.stk .s,.stk .st{word-break:keep-all}
+.cell .stk+.stk{margin-top:5px}
+.stk.up{flex-direction:column-reverse}
+.stk .ar{color:var(--sub);font-size:.68rem}
+.stk .st{font-weight:700}
+.stk .s{font-weight:600}
+.stk .s.ok{color:var(--done)}
+.stk .s.here{background:var(--doing);color:var(--card);border-radius:5px;padding:0 3px}
+.stk.mt .st{color:var(--sub);font-weight:600}
+.s-done{background:var(--done-soft)}
+.s-done .st{color:var(--done)}
+.s-doing{background:var(--doing-soft);border:2px solid var(--doing)}
+.s-next{background:var(--next-soft);border:2px dashed var(--next)}
+.m-want.s-todo{border:1px dashed var(--line)}
+/* ◎・○（中は塗らない） */
+.lgnote{}
+.mk{display:inline-grid;place-items:center;min-width:22px;height:22px;padding:0 4px;border-radius:99px;font-weight:700;font-size:.72rem;margin:3px 0;background:var(--card);color:var(--ink);border:1.5px solid currentColor}
+.mk.must{box-shadow:0 0 0 2px var(--card),0 0 0 3.5px currentColor}
+.mk.done{color:var(--done)}
+.mk.doing{color:var(--doing)}
+.mk.next{color:var(--next)}
+.brk{border:2px solid var(--ink);border-bottom:none;border-radius:7px 7px 0 0;font-weight:700;font-size:.72rem;text-align:center;background:none;padding:0 2px;margin:2px 0 0}
+.brk .bmid{display:inline-block;width:2px;height:1.1em;background:currentColor;margin:0 3px;vertical-align:middle}
+.brk .ab{display:inline-grid;place-items:center;width:1.45em;height:1.45em;border:1.5px solid currentColor;border-radius:50%;margin:0 1px}
+.brk.bd{border-bottom:2px solid var(--ink);border-top:none;border-radius:0 0 7px 7px;margin:0 0 2px}
+.brk.ok{border-color:var(--done);color:var(--done)}
+.brk.here{border-color:var(--doing);color:var(--doing);background:var(--doing-soft)}
+.legend{display:flex;gap:6px 12px;flex-wrap:wrap;font-size:.74rem;color:var(--sub);margin:8px 2px 0;align-items:center}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-2px}
+.legend .mk{min-width:18px;height:18px;font-size:.68rem;margin-right:6px}
+/* 治療の順番（1日ごと） */
+.order{margin-top:12px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 12px 8px}
+.oh{display:flex;align-items:center;gap:6px 8px;padding:6px 0;flex-wrap:wrap}
+.oh h2{font-size:.98rem;margin:0;white-space:nowrap}
+.oh h2 small{font-weight:400;color:var(--sub);font-size:.75rem;margin-left:4px}
+.oh .cnt{font-size:.8rem;color:var(--sub)}
+.oh .sp{flex:1}
+.vlist{position:relative}
+.vrow{display:flex;gap:10px;align-items:center;padding:9px 6px;border-top:1px solid var(--soft);border-radius:10px;background:var(--card)}
+.vrow.r-next{background:var(--next-soft)}
+.vrow.r-done .vb{color:var(--sub)}
+.vno{flex:0 0 auto;display:inline-grid;place-items:center;width:28px;height:28px;border-radius:50%;border:1.5px solid var(--ink);font-weight:700;font-size:.85rem}
+.vno.done{border-color:var(--done);color:var(--done)}
+.vno.next{border-color:var(--next);color:var(--next);border-width:2px}
+.vb{flex:1;min-width:0;min-height:40px;justify-content:center;text-align:left;background:none;border:none;padding:0;display:flex;flex-direction:column;gap:4px}
+.vl{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px}
+.vp{font-weight:600}
+.vmemo{font-size:.78rem;color:var(--sub)}
+.chk{flex:0 0 auto;border:1px solid var(--line);background:var(--card);border-radius:99px;padding:5px 14px;min-height:40px;font-size:.8rem;font-weight:700;white-space:nowrap}
+.chk.on{background:var(--done-soft);color:var(--done);border-color:var(--done)}
+.r-next .chk{border-color:var(--next);color:var(--next)}
+.grip{flex:0 0 auto;color:var(--sub);font-size:1.3rem;display:grid;place-items:center;width:44px;height:44px;margin:-8px -4px -8px 0;border-radius:10px;touch-action:none;cursor:grab}
+.grip:active{background:var(--soft)}
+.decide .vrow{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.vrow.lift{position:relative;z-index:5;box-shadow:0 10px 26px var(--shade);outline:2px solid var(--accent);background:var(--card);cursor:grabbing}
+.vno.und{width:auto;padding:0 7px;border-radius:14px;border-style:dashed;color:var(--sub);font-size:.75rem;font-weight:600}
+.vno.pick{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.decide .vrow.fx{opacity:.6}
+.decide .vrow:not(.fx):not(.kp){cursor:pointer}
+.decide .vrow:not(.fx):not(.kp) .vb{outline:1px dashed var(--accent);outline-offset:2px;border-radius:8px}
+.dbar{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px;position:sticky;top:0;z-index:4;background:var(--card);padding:6px 0}
+.rhint{font-size:.8rem;color:var(--accent);font-weight:600;margin:2px 0 6px}
+.empty{color:var(--sub);text-align:center;padding:24px 8px;font-size:.9rem}
+/* 下からのパネル */
+#sheet{position:fixed;inset:0;background:var(--shade);display:flex;align-items:flex-end;justify-content:center;z-index:10}
+.panel{background:var(--card);width:100%;max-width:760px;max-height:88%;overflow:auto;border-radius:18px 18px 0 0;padding:14px max(16px, env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px))}
+.panel h3{margin:0 0 6px;font-size:1.1rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.panel h3{padding-right:52px}
+/* 見出しを上に固定（× が中身のボタンに重ならないように） */
+.panel h3{position:sticky;top:-14px;z-index:2;background:var(--card);padding:6px 52px 8px 0;margin:-6px 0 6px}
+/* 下のボタン（追加・直すなど）は、いつも見える所に */
+.panel .foot{position:sticky;bottom:-16px;z-index:2;background:var(--card);padding:8px 0 10px;margin-bottom:-6px;border-top:1px solid var(--soft)}
+#sheet:not([hidden]) ~ #toast{bottom:auto;top:calc(12px + env(safe-area-inset-top, 0px))}
+@media(max-width:760px){.top .pname{order:-1;flex-basis:100%}}
+.xbar{position:sticky;top:0;height:0;display:flex;justify-content:flex-end;z-index:3}
+.xbtn{width:44px;height:44px;margin-top:-4px;border-radius:50%;border:1px solid var(--line);background:var(--soft);color:var(--ink);font-size:1.5rem;line-height:1;display:grid;place-items:center;padding:0}
+.panel h3 small{font-weight:400;color:var(--sub);font-size:.85rem}
+.lbl{font-size:.8rem;color:var(--sub);margin:12px 0 4px;font-weight:600}
+.grid-btns{display:flex;flex-wrap:wrap;gap:6px}
+.grid-btns .btn{font-weight:500}
+.grid-btns .btn.addopt{border-style:dashed;color:var(--accent);font-weight:700}
+.optbox{margin-top:8px;padding:10px;border:1px dashed var(--accent);border-radius:12px}
+.optbox .grid-btns{margin-top:8px}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.chain{display:flex;flex-wrap:wrap;gap:4px;align-items:center;min-height:34px;background:var(--soft);border-radius:10px;padding:5px 8px;font-weight:600}
+.chain .ph{font-size:.85rem}
+.chips{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.chip{font-size:.8rem;padding:4px 10px;border-radius:8px;background:var(--soft);border:1px solid var(--line);white-space:nowrap}
+.chip.ok{background:var(--done-soft);color:var(--done);border-color:var(--done);font-weight:600}
+.chip.here{background:var(--doing);color:var(--card);border-color:var(--doing);font-weight:700}
+.car{color:var(--sub);font-size:.7rem}
+.free{display:flex;gap:6px;margin-top:6px}
+.free input{flex:1;min-width:0}
+input[type=text],textarea{font:inherit;font-size:16px;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 10px;width:100%}
+textarea{min-height:60px}
+.foot{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:16px}
+.foot .left{margin-right:auto}
+.warn{font-size:.8rem;color:var(--next);margin-top:8px}
+.lines{display:grid;gap:6px}
+.lnrow{display:flex;gap:6px;align-items:stretch}
+.lnb{flex:1;min-width:0;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 10px;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
+.lnrow.cur .lnb{border:2px solid var(--accent);background:var(--accent-soft)}
+.mini{display:flex;flex-direction:column;gap:3px;max-width:100%}
+.mblock{display:flex;flex-direction:column;gap:3px}
+.mblock+.mblock{margin-top:6px}
+.mlab{font-size:.75rem;color:var(--sub)}
+.mrow{display:flex;gap:3px;align-items:stretch}
+.mrow.lower{padding-top:3px;border-top:2px solid var(--line)}
+.mrow .mt{flex:1 1 0;min-width:0;max-width:44px;height:42px;border:1px solid var(--line);border-radius:7px;background:var(--card);font-weight:700;font-size:.85rem;padding:0}
+.mrow .mt .ab{display:inline-grid;place-items:center;width:1.6em;height:1.6em;border:2px solid currentColor;border-radius:50%}
+.mrow .mt.miss{color:var(--sub);text-decoration:line-through}
+.mrow .mt.on{background:var(--accent);color:var(--on-accent);border-color:var(--accent)}
+.mrow .mmid{width:2px;flex:0 0 2px;background:var(--ink);margin:0 3px}
+.field{display:block;margin-top:8px}
+.field span{display:block;font-size:.8rem;color:var(--sub)}
+.list-in-sheet{display:grid;gap:6px}
+.list-in-sheet .btn{text-align:left;white-space:normal;display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;font-weight:500}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom, 0px));background:var(--ink);color:var(--card);border-radius:12px;padding:9px 14px;font-size:.88rem;display:flex;gap:12px;align-items:center;z-index:20;width:max-content;max-width:calc(100% - 32px)}
+#toast button{background:none;border:none;color:var(--card);font-weight:700;text-decoration:underline;padding:0;white-space:nowrap}
+@media (prefers-reduced-motion: reduce){*{scroll-behavior:auto!important}}
+/* 印刷：カルテに入れる用。ボタン類は出さず、図は1枚（右上〜左上を横一列）、背景は白 */
+#print{display:none}
+@media print{
+  :root,:root:not([data-theme="light"]),:root[data-theme="dark"]{
+    --bg:#fff; --card:#fff; --ink:#111; --sub:#555; --line:#bbb; --soft:#eee;
+    --accent:#0f766e; --accent-soft:#d6efec; --on-accent:#fff;
+    --done:#15803d; --done-soft:#e3f5e8; --doing:#1d4ed8; --doing-soft:#e0e9fd;
+    --next:#b45309; --next-soft:#fdf0dc; color-scheme:light;
+  }
+  @page{size:A4 portrait;margin:10mm}
+  html,body{background:#fff}
+  body{font-size:12px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #app,#sheet,#toast{display:none!important}
+  #print{display:block}
+  .phead{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;border-bottom:2px solid #111;padding-bottom:4px;margin-bottom:8px}
+  .phead h1{font-size:16px;margin:0}
+  .phead .pt{font-size:11px;color:#555}
+  .phead .sp{flex:1}
+  /* 紙の幅に合わせて縮める（画面用の最小幅・横スクロールを外す。iPad の Safari で右端が切れていた） */
+  #print .figwrap{border:1px solid #bbb;break-inside:avoid;overflow:visible;padding:8px 4px}
+  #print .fig.full{min-width:0}
+  #print .full .frow{grid-template-columns:30px repeat(8,minmax(0,1fr)) 4px repeat(8,minmax(0,1fr))}
+  #print .stk,#print .brk{font-size:10px}
+  #print h2{font-size:13px;margin:12px 0 4px}
+  .ptab{width:100%;border-collapse:collapse}
+  .ptab td{border-bottom:1px solid #ccc;padding:4px 6px;vertical-align:top}
+  .ptab tr{break-inside:avoid}
+  .ptab .c-no{width:44px;text-align:center}
+  .ptab .c-dt{width:70px;text-align:right;white-space:nowrap}
+  .ptab thead{display:table-header-group}
+  .ptab th{font-size:10px;text-align:left;font-weight:400;color:#555;padding:2px 6px}
+  .lgnote{display:none}
+}
+</style>
+
+<div id="app"></div>
+<div id="sheet" hidden><div class="panel" id="panel"></div></div>
+<div id="toast" hidden></div>
+<div id="print"></div>
+
+<script>
+'use strict';
+// ---- 歯の並び（FDI）・名前 ----
+const KEY = 'tx-plan-preview-v2';
+const UPPER = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28];
+const LOWER = [48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38];
+const quad = (t) => Math.floor(t / 10);
+const isRight = (t) => quad(t) === 1 || quad(t) === 4;
+const colOf = (t) => (isRight(t) ? 10 - (t % 10) : 10 + (t % 10)); // 全体表示：1列目はラベル、10列目は正中
+const byCol = (a, b) => colOf(a) - colOf(b);
+const QN = { 1: '右上', 2: '左上', 3: '左下', 4: '右下' };
+const toothName = (t) => QN[quad(t)] + (t % 10);
+function teethName(ts) { // 知らせなど文字だけの所で使う
+  if (!ts || !ts.length) return '';
+  const s = [...ts].sort(byCol);
+  if (s.length === 1) return toothName(s[0]);
+  const a = s[0], b = s[s.length - 1];
+  return quad(a) === quad(b) ? `${toothName(a)}-${b % 10}` : `${toothName(a)}〜${toothName(b)}`;
+}
+// 歯式の記号：右上は 5┘、左上は └5、右下は 6┐、左下は ┌6。支台歯は丸で囲む
+function palmer(teeth, abut = []) {
+  if (!teeth || !teeth.length) return '';
+  const g = { 1: [], 2: [], 3: [], 4: [] };
+  teeth.forEach((t) => g[quad(t)].push(t));
+  const nums = (n) => [...g[n]].sort((a, b) => (n === 1 || n === 4 ? b - a : a - b))
+    .map((t) => (abut.includes(t) ? `<span class="ab">${t % 10}</span>` : `<span>${t % 10}</span>`)).join('');
+  const jaw = (r, l, cls) => { // r＝右側の象限、l＝左側の象限
+    if (g[r].length && g[l].length) return `<span class="pal ${cls}">${nums(r)}<span class="pmid"></span>${nums(l)}</span>`;
+    if (g[r].length) return `<span class="pal q${r}">${nums(r)}</span>`;
+    return g[l].length ? `<span class="pal q${l}">${nums(l)}</span>` : '';
+  };
+  return `<span class="pals" title="${teethName(teeth)}">${jaw(1, 2, 'up')}${jaw(4, 3, 'lo')}</span>`;
+}
+const CIRC = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';
+const circ = (n) => CIRC[n - 1] || `(${n})`;
+
+// 図の並べ方。広い画面は1枚、狭い画面（iPhone）は右側・左側の2枚
+const NARROW = window.matchMedia('(max-width: 760px)');
+const LAYOUTS = {
+  full: { cls: 'full', up: UPPER, lo: LOWER, col: colOf, mid: 10 },
+  right: { cls: 'half r', title: '右側（右上・右下）', up: UPPER.slice(0, 8), lo: LOWER.slice(0, 8), col: (t) => 10 - (t % 10), mid: 10 },
+  left: { cls: 'half l', title: '左側（左上・左下）', up: UPPER.slice(8), lo: LOWER.slice(8), col: (t) => 2 + (t % 10), mid: 2 },
+};
+
+// ---- ボタンの言葉（本番では設定で編集） ----
+// 状態は複数選べる。保存は「C2, Pul」のように1つの文字列（データの形は変えない）
+const STATE_SEP = ', ';
+const splitStates = (s) => (s || '').split(/\s*[,、，]\s*/).filter(Boolean);
+const STATES = ['C1', 'C2', 'C3', 'C4', 'Per', 'Pul', 'P', '歯根破折', 'MT', 'インレー不適', 'CR不適', '冠不適', '残根', '動揺'];
+const STEPS = ['Ext', '骨造成', 'エンド', 'コア', 'CR', 'DB', 'セラミックIn', 'メタルIn', 'ZrCr', 'e.maxCr', 'CAD/CAM冠', 'FMC', 'Br', 'PD', 'FD', 'インプラント', 'SRP', '経過観察'];
+const PROCS = ['Ext', 'Br set', '骨造成', 'プロビ入りシーネ印象', 'プロビ入りシーネset', 'インプラント埋入', '二次手術', 'エンド', '根充', 'コア', '形成・印象', '試適', 'set', 'CR', 'DB', 'セラミックIn', 'ZrCr', 'PD印象', 'PD set', 'SRP', '経過観察'];
+// 先生が「＋ 項目を追加」で作ったボタン（db.custom に保存。見本に戻しても残す）
+const optList = (k) => [...(k === 'procs' ? PROCS : STEPS), ...((db.custom || {})[k] || [])];
+const OPT_LABEL = { procs: '処置', steps: '治療方法' };
+const canon = (x, list) => list.find((y) => norm(y) === norm(x)) || x; // 打った言葉がボタンと同じ（大文字・小文字や全角・半角の違いだけ）なら、ボタンの書き方にそろえる
+function optButtons(k, act) {
+  const box = sheet.optEdit === k ? `<div class="optbox"><div class="free" style="margin:0"><input type="text" id="fo" placeholder="新しい${OPT_LABEL[k]}の名前"><button class="btn main" data-act="optadd" data-k="${k}">作る</button></div>
+      ${db.custom[k].length ? `<div class="grid-btns">${db.custom[k].map((x, i) => `<button class="btn" data-act="optdel" data-k="${k}" data-i="${i}">${esc(x)} ×</button>`).join('')}</div><p class="pv" style="margin:6px 0 0">× を押すと、作った項目をボタンから消せます（入力済みの内容は消えません）</p>` : ''}
+      <div class="seg" style="margin-top:8px"><button class="btn" data-act="optclose">閉じる</button></div></div>` : '';
+  return `<div class="grid-btns">${optList(k).map((x) => `<button class="btn" data-act="${act}" data-v="${esc(x)}">${esc(x)}</button>`).join('')}${sheet.optEdit === k ? '' : `<button class="btn addopt" data-act="optnew" data-k="${k}">＋ 項目を追加</button>`}</div>${box}`;
+}
+const BRACKET = new Set(['Br', 'PD', 'FD']); // 図で範囲を括弧で描く治療
+
+// ---- 小物 ----
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const uid = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+const md = (iso) => (iso ? `${+iso.slice(5, 7)}/${+iso.slice(8, 10)}` : '');
+const $ = (s) => document.querySelector(s);
+const ends = (ts) => { const s = [...ts].sort(byCol); return s.length > 1 ? [s[0], s[s.length - 1]] : []; };
+
+// ---- 見本データ（ダミー患者。龍太郎の手書きの例） ----
+function seed() {
+  const it = (mark, teeth, state, steps, span = null, abut = null) => ({ id: uid(), mark, teeth, state, steps: steps.map((name) => ({ name })), span, abut, memo: '' });
+  const vi = (lines, done = null) => ({ id: uid(), done, memo: '', lines: lines.map(([teeth, procs, abut = []]) => ({ teeth, procs, abut })) });
+  const p1 = { id: 'sample-1', chartNo: '0001', name: '見本 一郎', kana: '', birth: '', note: '', createdAt: Date.now() };
+  const p2 = { id: 'sample-2', chartNo: '0002', name: '見本 花子', kana: '', birth: '', note: '', createdAt: Date.now() };
+  // 見本の患者は決まった id（別の iPad のバックアップを読み込んでも見本が二重にならないように）
+  return {
+    patients: [p1, p2],
+    plans: {
+      [p1.id]: { version: 1, missing: [26, 27, 28, 48],
+        items: [
+          it('must', [15], 'C4', ['Ext', 'Br'], [16, 15, 14], [16, 14]),
+          it('must', [18], 'C2', ['Ext']),
+          it('must', [11], '歯根破折', ['Ext', '骨造成', 'インプラント']),
+          it('must', [46], 'C2', ['セラミックIn']),
+          it('must', [47], 'C2', ['DB']),
+          it('', [26, 27, 28], 'MT', ['PD'], [26, 27, 28]),
+          it('want', [34], 'Per', ['エンド', 'コア', 'ZrCr']),
+          it('want', [37], 'インレー不適', ['セラミックIn']),
+        ],
+        visits: [
+          vi([[[15], ['Ext']]], '2026-08-20'),
+          vi([[[16, 15, 14], ['Br set'], [16, 14]]], '2026-10-01'),
+          vi([[[18], ['Ext', 'プロビ入りシーネ印象']]], '2026-10-04'),
+          vi([[[11], ['Ext', '骨造成', 'プロビ入りシーネset']]]),
+          vi([[[46], ['セラミックIn']]]),
+          vi([[[47], ['DB']]]),
+        ] },
+      [p2.id]: { version: 1, missing: [],
+        items: [
+          it('must', [36], 'C3', ['エンド', 'コア', 'ZrCr']),
+          it('must', [24], 'C2', ['CR']),
+          it('want', [45], '冠不適', ['e.maxCr']),
+        ],
+        visits: [
+          vi([[[36], ['エンド']]]),
+          vi([[[36], ['根充', 'コア']], [[24], ['CR']]]),
+          vi([[[36], ['形成・印象']]]),
+          vi([[[36], ['ZrCr set']]]),
+        ] },
+    },
+  };
+}
+function load() { try { const s = localStorage.getItem(KEY); if (s) return JSON.parse(s); } catch (e) { /* 保存が使えない環境 */ } return seed(); }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { /* 保存できなくても画面は動く */ } }
+let db = load();
+db.custom = Object.assign({ procs: [], steps: [] }, db.custom);
+const view = { pid: null, decide: null, q: '' }; // q：患者さがしの文字 // decide：順番を決めている途中 { picked: [日のid], all: 全部決め直すか }
+let sheet = null; // 開いている下からのパネル
+let toastTimer = null, toastUndo = null;
+
+// ---- 進み具合（1日ごとの完了から自動で決める） ----
+// ブリッジの支台歯：図の治療に持っている支台歯。古いデータは「範囲のうち治療の歯以外」
+const brAbut = (it) => (Array.isArray(it.abut) ? it.abut : (it.span || []).filter((t) => !it.teeth.includes(t)));
+const touches = (it, t) => it.teeth.includes(t) || (it.span || []).includes(t);
+const lineTouches = (it, ln) => ln.teeth.some((t) => touches(it, t));
+const lineHasTooth = (it, ln) => ln.teeth.some((t) => it.teeth.includes(t)); // 治療の歯そのもの（ブリッジの範囲の別の歯は含めない）
+const norm = (s) => s.normalize('NFKC').replace(/[\s・]/g, '').toLowerCase();
+// 処置名と図の治療名の照合：同じ名前、「Br set」「ZrCr set」のような〜set、「インプラント埋入」のように後ろに日本語が続くものだけ一致。「ZrCr」は「CR」に一致しない
+function procMatches(proc, step) {
+  const b = norm(step), a = norm(proc);
+  if (proc.split(/[\s、,，]+/).map(norm).includes(b)) return true;
+  return a === b || (a.startsWith(b) && !/^[a-z0-9.\/]/.test(a.slice(b.length))) || a.startsWith(b + 'set');
+}
+// その日の行が、図の治療のこの段階にあたるか。ブリッジ・義歯は範囲の行（治療の歯が全部入る行）、ほかは治療の歯の行
+const stepHit = (it, name, ln) => ln.procs.some((p) => procMatches(p, name)) &&
+  (BRACKET.has(name) && it.span && it.span.length ? it.teeth.every((t) => ln.teeth.includes(t)) : lineHasTooth(it, ln));
+// 図 → 順番：まだ順番に入っていない治療を、1つずつ1日分として末尾に足す
+const unsched = (pl, it) => it.steps.map((s) => s.name).filter((n) => !pl.visits.some((v) => v.lines.some((ln) => stepHit(it, n, ln))));
+function itemToVisits(pl, it) {
+  const added = [];
+  for (const s of it.steps) {
+    if (pl.visits.some((v) => v.lines.some((ln) => stepHit(it, s.name, ln)))) continue;
+    const br = BRACKET.has(s.name) && it.span && it.span.length;
+    const ln = br ? { teeth: [...it.span], procs: [`${s.name} set`], abut: s.name === 'Br' ? [...brAbut(it)] : [] }
+      : { teeth: [...it.teeth], procs: [s.name], abut: [] };
+    pl.visits.push({ id: uid(), done: null, fixed: false, memo: '', lines: [ln] });
+    added.push(pl.visits.length);
+  }
+  return added;
+}
+// 順番 → 図：図にまだ無い歯の行だけ、図の治療として足す（図にある歯は図をそのまま）
+function visitToItems(pl, v) {
+  let n = 0;
+  for (const ln of v.lines) {
+    if (!ln.teeth.length || ln.teeth.some((t) => pl.items.some((it) => touches(it, t)))) continue;
+    const brName = [...BRACKET].find((b) => ln.procs.some((p) => new RegExp(`^${b}`, 'i').test(p.trim())));
+    const steps = ln.procs.map((p) => ({ name: brName && new RegExp(`^${brName}`, 'i').test(p.trim()) ? brName : p }))
+      .filter((x, i, arr) => arr.findIndex((y) => y.name === x.name) === i);
+    const pont = brName === 'Br' && ln.abut.length ? ln.teeth.filter((t) => !ln.abut.includes(t)) : ln.teeth;
+    pl.items.push({ id: uid(), mark: '', teeth: [...pont], state: ln.teeth.every((t) => pl.missing.includes(t)) ? 'MT' : '', steps, span: brName ? [...ln.teeth] : null, abut: brName === 'Br' ? [...ln.abut] : null, memo: '' });
+    n++;
+  }
+  return n;
+}
+// ---- 順番が決まっているか ----
+// 図から入れた日・後から足した日は「未定」（fixed:false）。「順番を決める」で番号が付く。完了した日は決まった扱い
+const isFixed = (v) => !!v.done || v.fixed !== false;
+function settle(pl) { const f = pl.visits.filter(isFixed), u = pl.visits.filter((v) => !isFixed(v)); pl.visits.splice(0, pl.visits.length, ...f, ...u); } // 決まった日を上、未定を下に
+const vnum = (pl, v) => (isFixed(v) ? pl.visits.indexOf(v) + 1 : null);
+const vlabel = (pl, v) => (vnum(pl, v) ? circ(vnum(pl, v)) : '（未定）');
+const vnoHTML = (pl, a, v) => (vnum(pl, v) ? `<span class="vno ${a.vst[v.id]}">${vnum(pl, v)}</span>` : '<span class="vno und">未定</span>');
+function analyze(pl) {
+  const vst = {}; let nextV = null;
+  pl.visits.forEach((v) => { if (v.done) vst[v.id] = 'done'; else if (!isFixed(v)) vst[v.id] = 'und'; else if (!nextV) { nextV = v; vst[v.id] = 'next'; } else vst[v.id] = 'todo'; });
+  // 図の番号：その歯が「治療の順番」（順番が決まった日だけ）に初めて出てくる順。未定の日だけの歯は番号なし
+  const num = {}; let k = 0;
+  for (const v of pl.visits.filter(isFixed)) for (const ln of v.lines) for (const t of [...ln.teeth].sort(byCol)) for (const it of pl.items) if (it.mark && !num[it.id] && it.teeth.includes(t)) num[it.id] = ++k;
+  const ist = {}, sdone = {}, here = {};
+  for (const it of pl.items) {
+    const doneVs = pl.visits.filter((v) => v.done && v.lines.some((ln) => lineHasTooth(it, ln)));
+    const sd = it.steps.map((s) => doneVs.some((v) => v.lines.some((ln) => stepHit(it, s.name, ln))));
+    sdone[it.id] = sd;
+    const inNext = nextV && nextV.lines.some((ln) => lineHasTooth(it, ln));
+    // 治療のない「状態だけ」の項目は、進行中にしない
+    ist[it.id] = !sd.length ? (inNext ? 'next' : 'todo') : sd.every(Boolean) ? 'done' : sd.some(Boolean) || doneVs.length ? 'doing' : inNext ? 'next' : 'todo';
+    here[it.id] = ist[it.id] === 'doing' ? sd.indexOf(false) : -1;
+  }
+  const done = pl.visits.filter((v) => v.done).length;
+  return { vst, nextV, num, ist, sdone, here, done, total: pl.visits.length, pct: pl.visits.length ? Math.round((done / pl.visits.length) * 100) : 0 };
+}
+const curPlan = () => db.plans[view.pid];
+const findItem = (id) => curPlan().items.find((i) => i.id === id);
+const findVisit = (id) => curPlan().visits.find((v) => v.id === id);
+const linesHTML = (v) => v.lines.map((ln) => `<div class="vl">${palmer(ln.teeth, ln.abut)}<span class="vp">${esc(ln.procs.join('、'))}</span></div>`).join('');
+const linesText = (v) => v.lines.map((ln) => `${teethName(ln.teeth)} ${ln.procs.join('、')}`.trim()).join('／');
+const markHTML = (it, a, cls = '') => (it.mark ? `<span class="mk ${it.mark} ${a.ist[it.id]} ${cls}">${a.num[it.id] || ''}</span>` : '');
+function itemTitleHTML(it) {
+  const a = palmer(it.teeth, Array.isArray(it.abut) ? it.abut : []);
+  const br = it.steps.find((s) => BRACKET.has(s.name));
+  return it.span && it.span.length && br ? `${a} → ${palmer(it.span, br.name === 'Br' ? brAbut(it) : [])} ${esc(br.name)}` : a;
+}
+
+// ---- 画面：患者一覧 ----
+// ---- 患者さがし：名前（漢字・かな・カタカナ・ローマ字）やカルテ番号の一部で絞る。最近開いた患者はすぐ選べるように上に出す ----
+const normQ = (s) => (s || '').normalize('NFKC').toLowerCase().replace(/\s/g, '').replace(/[ァ-ヶ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60)); // 全角→半角、カタカナ→ひらがな
+const matchQ = (p, q) => !q || normQ(p.name).includes(q) || normQ(p.chartNo).includes(q);
+function touchRecent(id) { db.recent = [id, ...(db.recent || []).filter((x) => x !== id)].slice(0, 6); save(); }
+function patientCard(p) {
+  const pl = db.plans[p.id], a = analyze(pl);
+  return `<button class="pcard" data-act="open" data-id="${p.id}">
+      <div class="pn">${esc(p.name)} <small>様</small></div>
+      ${p.chartNo ? `<div class="pk">No.${esc(p.chartNo)}</div>` : ''}
+      <div class="pp"><span class="bar"><i style="width:${a.pct}%"></i></span>${a.done} / ${a.total} 日 完了</div>
+      <div class="px">${a.nextV ? `次回 ${circ(pl.visits.indexOf(a.nextV) + 1)}　${linesHTML(a.nextV)}` : pl.visits.some((v) => !isFixed(v)) ? '順番は未定' : a.total ? 'すべて完了' : '治療の順番なし'}</div></button>`;
+}
+function listBody() {
+  const q = normQ(view.q), hits = db.patients.filter((p) => matchQ(p, q));
+  const recent = (db.recent || []).map((id) => db.patients.find((p) => p.id === id)).filter(Boolean);
+  const recentHTML = !q && recent.length ? `<div class="lbl" style="margin-top:0">最近開いた患者</div>
+    <div class="recent">${recent.map((p) => `<button class="btn" data-act="open" data-id="${p.id}">${esc(p.name)}${p.chartNo ? ` <small>No.${esc(p.chartNo)}</small>` : ''}</button>`).join('')}</div>
+    <div class="lbl">すべての患者（${db.patients.length}人）</div>` : '';
+  const found = q ? `<p class="pv">${hits.length ? `${hits.length}人 見つかりました${hits.length === 1 ? '（Enter で開けます）' : ''}` : '見つかりません。名前の一部やカルテ番号で探してください'}</p>` : '';
+  return `${recentHTML}${found}<div class="plist">${hits.map(patientCard).join('') || (q ? '' : '<p class="empty">患者がいません</p>')}</div>`;
+}
+function renderList() {
+  $('#print').innerHTML = ''; // 一覧では印刷する物なし
+  $('#app').innerHTML = `
+    <header class="top"><h1>治療計画</h1><span class="sp"></span>
+      <button class="btn" data-act="backup">バックアップ</button>
+      <button class="btn main" data-act="addPatient">＋ 患者</button></header>
+    <p class="pv">データはこの端末（iPad など）の中にだけ保存されます。「見本 一郎」「見本 花子」は練習用の架空の患者です。</p>
+    ${backupBanner()}
+    <div class="search"><input type="search" id="pq" data-input="pq" value="${esc(view.q || '')}" placeholder="🔍 名前・カルテ番号で探す" autocomplete="off"><button class="btn" data-act="qclear" id="qx"${view.q ? '' : ' hidden'}>消す</button></div>
+    <div id="plbody">${listBody()}</div>`;
+}
+
+// ---- 画面：患者（治療工程把握図＋治療の順番） ----
+function renderPatient() {
+  const p = db.patients.find((x) => x.id === view.pid), pl = curPlan(), a = analyze(pl);
+  const nextBtn = a.nextV ? `<button class="box nx" data-act="visit" data-id="${a.nextV.id}"><span class="k">次回</span><span class="vno next">${pl.visits.indexOf(a.nextV) + 1}</span>${linesHTML(a.nextV)}</button>` : '';
+  const figs = NARROW.matches ? figure(pl, a, LAYOUTS.right) + figure(pl, a, LAYOUTS.left) : figure(pl, a, LAYOUTS.full);
+  $('#app').innerHTML = `
+    <header class="top">
+      <button class="btn" data-act="back">‹ 患者一覧</button>
+      <div class="pname">${esc(p.name)} <small>様</small><span class="meta">${p.chartNo ? `No.${esc(p.chartNo)}　` : ''}計画 第${pl.version}版</span></div>
+      <span class="sp"></span>
+      <button class="btn" data-act="print">印刷</button>
+      <button class="btn" data-act="add">＋ 図に追加</button>
+    </header>
+    <div class="nowbar">
+      <div class="box"><span class="k">進み具合</span><span class="bar" style="width:100px"><i style="width:${a.pct}%"></i></span><b>${a.done} / ${a.total} 日</b></div>
+      ${nextBtn}
+      ${pl.visits.some((v) => !isFixed(v)) ? `<button class="box" data-act="decide"><span class="vno und">未定</span>${pl.visits.filter((v) => !isFixed(v)).length}日 → 順番を決める</button>` : ''}
+    </div>
+    <div class="figwrap">${figs}
+      <div class="legend">
+        <span><span class="mk must">1</span>必ずやる（◎）</span><span><span class="mk want">1</span>できたらやりたい（○）</span>
+        <span>数字＝治療する順番<span class="lgnote">（下の「順番を決める」で付きます）</span></span>
+        <span><i style="background:var(--done-soft);border:1px solid var(--done)"></i>完了</span>
+        <span><i style="background:var(--doing-soft);border:2px solid var(--doing)"></i>進行中</span>
+        <span><i style="background:var(--next-soft);border:2px dashed var(--next)"></i>次回</span>
+      </div>
+    </div>
+    ${orderList(pl, a)}
+    <div class="pdel"><button class="btn danger" data-act="pdel">この患者を削除</button></div>`;
+  $('#print').innerHTML = printHTML(); // Safari の「共有 → プリント」から印刷しても同じ形になるように、いつも用意しておく
+}
+
+// ---- 印刷（カルテに入れる用）：今の患者の図と治療の順番を A4 1枚に ----
+function printHTML() {
+  const p = db.patients.find((x) => x.id === view.pid), pl = curPlan(), a = analyze(pl), d = today();
+  const rows = pl.visits.map((v) => `<tr><td class="c-no">${vnoHTML(pl, a, v)}</td><td>${linesHTML(v)}${v.memo ? `<div class="vmemo">${esc(v.memo)}</div>` : ''}</td><td class="c-dt">${v.done ? `✓ ${md(v.done)}` : ''}</td></tr>`).join('');
+  return `<div class="phead"><h1>治療計画　${esc(p.name)} 様</h1><span>${p.chartNo ? `No.${esc(p.chartNo)}　` : ''}計画 第${pl.version}版　完了 ${a.done} ／ ${a.total} 日${a.nextV ? `　次回 ${circ(pl.visits.indexOf(a.nextV) + 1)}` : ''}</span>
+      <span class="sp"></span><span class="pt">印刷 ${d.replace(/-/g, '/')}</span></div>
+    <div class="figwrap">${figure(pl, a, LAYOUTS.full)}${$('.legend') ? $('.legend').outerHTML : ''}</div>
+    <h2>治療の順番</h2>
+    ${rows ? `<table class="ptab"><thead><tr><th colspan="3">${esc(p.name)} 様${p.chartNo ? `　No.${esc(p.chartNo)}` : ''}　治療の順番</th></tr></thead><tbody>${rows}</tbody></table>` : '<p>まだありません</p>'}`;
+}
+function figure(pl, a, L) {
+  return `<div class="fig ${L.cls}">${L.title ? `<p class="ftitle">${L.title}</p>` : ''}
+    ${bracketRow(pl, a, L, true)}
+    ${stackRow(pl, a, L, true)}
+    ${numRow(pl, L, L.up, '上顎')}
+    <div class="hr"></div>
+    ${numRow(pl, L, L.lo, '下顎')}
+    ${stackRow(pl, a, L, false)}
+    ${bracketRow(pl, a, L, false)}
+  </div>`;
+}
+function numRow(pl, L, teeth, label) {
+  return `<div class="frow"><div class="lab">${label}</div><div class="mid" style="grid-column:${L.mid}"></div>${teeth.map((t) =>
+    `<button class="num${pl.missing.includes(t) ? ' miss' : ''}" style="grid-column:${L.col(t)}" data-act="tooth" data-t="${t}">${t % 10}</button>`).join('')}</div>`;
+}
+// 1つの治療の「印 → 状態 → 治療…」は、見えている歯のうち真ん中の歯にまとめて描く
+function anchorOf(it, shown) {
+  const s = it.teeth.filter((t) => shown.includes(t)).sort(byCol);
+  return s.length ? s[Math.floor((s.length - 1) / 2)] : null;
+}
+function stackRow(pl, a, L, upper) {
+  const teeth = upper ? L.up : L.lo, ar = upper ? '↑' : '↓';
+  let h = `<div class="frow"><div class="lab">状態<br>${ar}<br>治療</div><div class="mid" style="grid-column:${L.mid}"></div>`;
+  for (const t of teeth) {
+    const its = pl.items.filter((i) => i.teeth.includes(t));
+    let inner = '';
+    for (const it of its) {
+      const cls = `stk ${upper ? 'up' : 'dn'} s-${a.ist[it.id]} m-${it.mark || 'none'}`;
+      // iPhone で右側・左側に分かれるとき、正中をまたぐ治療は歯の多い側（同じなら右側）にだけ全部を描く
+      const sh = it.teeth.filter((x) => teeth.includes(x)), rest = it.teeth.length - sh.length;
+      const major = !rest || sh.length > rest || (sh.length === rest && [1, 4].includes(quad(sh[0])));
+      const stHTML = it.state ? `<span class="st">${splitStates(it.state).map(esc).join(',<br>')}</span>` : '';
+      if (!major || anchorOf(it, teeth) !== t) { if (it.state) inner += `<button class="${cls}" data-act="item" data-id="${it.id}">${stHTML}</button>`; continue; }
+      const parts = [markHTML(it, a)];
+      if (it.state) parts.push(stHTML);
+      it.steps.forEach((x, j) => {
+        if (BRACKET.has(x.name) && it.span && it.span.length) return; // 括弧の行に描く
+        const ok = a.sdone[it.id][j];
+        parts.push(`<span class="ar">${ar}</span>`, `<span class="s${ok ? ' ok' : ''}${j === a.here[it.id] ? ' here' : ''}">${esc(x.name)}${ok ? ' ✓' : ''}</span>`);
+      });
+      inner += `<button class="${cls}" data-act="item" data-id="${it.id}">${parts.join('')}</button>`;
+    }
+    if (!its.length && pl.missing.includes(t)) inner = `<button class="stk ${upper ? 'up' : 'dn'} mt" data-act="tooth" data-t="${t}"><span class="st">MT</span></button>`;
+    h += `<div class="cell ${upper ? 'cu' : 'cd'}" style="grid-column:${L.col(t)}">${inner}</div>`;
+  }
+  return h + '</div>';
+}
+function bracketRow(pl, a, L, upper) {
+  const teeth = upper ? L.up : L.lo;
+  let h = `<div class="frow brow${upper ? '' : ' lo'}"><div class="lab"></div>`;
+  const lanes = []; // 重なる括弧は段を分ける（lanes[段] = 使っている列の範囲）
+  for (const it of pl.items) {
+    it.steps.forEach((x, j) => {
+      if (!BRACKET.has(x.name) || !it.span || !it.span.length) return;
+      const shown = it.span.filter((t) => teeth.includes(t)), cs = shown.map(L.col);
+      if (!cs.length) return;
+      // 括弧の中は、図の並び順の歯番号（支台歯は丸）だけ。歯式の線は付けない（括弧の位置で歯は分かる）
+      // iPhone で右側・左側に分かれるときは、歯の多い側（同じなら右側）にだけ番号を出し、もう片方は「Br」だけ
+      const rest = it.span.length - shown.length;
+      const full = shown.length > rest || (shown.length === rest && [1, 4].includes(quad(shown[0])));
+      const ab = brAbut(it);
+      const srt = [...it.span].sort(byCol), isR = (t) => [1, 4].includes(quad(t));
+      const lab = x.name === 'Br' && full ? `${srt.map((t, i) => (i && isR(srt[i - 1]) && !isR(t) ? '<span class="bmid"></span>' : '') + (ab.includes(t) ? `<span class="ab">${t % 10}</span>` : t % 10)).join('')} ` : '';
+      const c0 = Math.min(...cs), c1 = Math.max(...cs);
+      let lane = lanes.findIndex((u) => u.every(([a0, a1]) => c1 < a0 || c0 > a1));
+      if (lane < 0) { lanes.push([]); lane = lanes.length - 1; }
+      lanes[lane].push([c0, c1]);
+      const ok = a.sdone[it.id][j];
+      h += `<button class="brk ${upper ? 'bu' : 'bd'}${ok ? ' ok' : ''}${j === a.here[it.id] ? ' here' : ''}" style="grid-column:${c0}/${c1 + 1};grid-row:LANE${lane}" data-act="item" data-id="${it.id}">${lab}${esc(x.name)}${ok ? ' ✓' : ''}</button>`;
+    });
+  }
+  // 上顎は歯から遠い段ほど上、下顎は下へ
+  h = h.replace(/LANE(\d+)/g, (_, n) => (upper ? lanes.length - +n : +n + 1));
+  return h + '</div>';
+}
+
+function orderList(pl, a) {
+  const d = view.decide;
+  // 決める途中：決まっている日（全部決め直すときは完了した日だけ）は動かさず、ほかの日を押した順に番号を付ける
+  const keep = (v) => (d && d.all ? !!v.done : isFixed(v));
+  const base = pl.visits.filter(keep).length;
+  const rows = pl.visits.map((v, i) => {
+    const k = a.vst[v.id];
+    let no = vnoHTML(pl, a, v), act = 'visit', fx = '';
+    if (d) {
+      const pi = d.picked.indexOf(v.id);
+      if (keep(v)) fx = v.done ? ' fx' : ' kp';
+      else { act = 'dpick'; no = pi >= 0 ? `<span class="vno pick">${base + pi + 1}</span>` : '<span class="vno und">未定</span>'; }
+    }
+    const right = d ? (v.done ? `<span class="ph" style="font-size:.8rem">✓ ${md(v.done)}</span>` : '<span class="grip" aria-hidden="true">≡</span>') : `<button class="chk${v.done ? ' on' : ''}" data-act="vdone" data-id="${v.id}">${v.done ? `✓ ${md(v.done)}` : '完了'}</button>`;
+    // 決める途中は、行のどこ（「未定」の丸を含む）を押しても番号が付く
+    return `<div class="vrow r-${k}${fx}" data-id="${v.id}"${d && !keep(v) ? ' data-act="dpick"' : ''}>
+      ${no}
+      <button class="vb" data-act="${fx || (d && keep(v)) ? 'none' : act}" data-id="${v.id}">${linesHTML(v)}${v.memo ? `<span class="vmemo">${esc(v.memo)}</span>` : ''}</button>
+      ${right}</div>`;
+  }).join('');
+  const undec = pl.visits.filter((v) => !isFixed(v)).length, open = pl.visits.some((v) => !v.done);
+  const head = d ? ''
+    : `${open ? `<button class="btn${undec ? ' main' : ''}" data-act="decide">順番を決める${undec ? `（未定 ${undec}）` : ''}</button>` : ''}
+      <button class="btn${undec ? '' : ' main'}" data-act="vadd">＋ 追加</button>`;
+  const dbar = d ? `<p class="rhint">${d.all ? '完了していない日を治療する順に押す（押さなかった日は未定に戻ります）' : '未定の日を治療する順に押す（もう一度で外す）'}。≡ をつかむと並べ替え（その場で保存）</p>
+    <div class="dbar"><button class="btn" data-act="dpop" ${d.picked.length ? '' : 'disabled'}>1つ戻す</button><button class="btn" data-act="dclear" ${d.picked.length ? '' : 'disabled'}>最初から</button>
+      <button class="btn${d.all ? ' on' : ''}" data-act="dall">${d.all ? '決まっている日はそのまま' : '全部決め直す'}</button><span class="sp" style="flex:1"></span>
+      <button class="btn" data-act="dcancel">${d.picked.length ? 'やめる' : '終わる'}</button><button class="btn main" data-act="dok" ${d.picked.length ? '' : 'disabled'}>決定</button></div>` : '';
+  return `<section class="order${d ? ' decide' : ''}">
+    <div class="oh"><h2>治療の順番<small>1日ごと</small></h2><span class="cnt">完了 ${a.done} ／ ${a.total} 日</span><span class="sp"></span>${head}</div>
+    ${dbar}
+    <div class="vlist">${rows || '<p class="empty">まだありません。図に追加するか「＋ 追加」で1日分ずつ入れてください</p>'}</div>
+    ${d ? '' : '<p class="pv" style="margin:8px 0 0">「完了」を押すと、その日の処置が図にも✓で反映されます（日付は今日）。</p>'}
+  </section>`;
+}
+
+// ---- 下からのパネル ----
+function miniGrid(sel, act, missing = [], circled = []) {
+  const btn = (t) => `<button class="mt${sel.includes(t) ? ' on' : ''}${missing.includes(t) ? ' miss' : ''}" data-act="${act}" data-t="${t}" aria-label="${toothName(t)}">${circled.includes(t) ? `<span class="ab">${t % 10}</span>` : t % 10}</button>`;
+  const mid = '<span class="mmid"></span>';
+  if (NARROW.matches) { // iPhone：右側・左側に分ける
+    const blk = (title, up, lo, midFirst) => `<div class="mblock"><div class="mlab">${title}</div>
+      <div class="mrow">${midFirst ? mid : ''}${up.map(btn).join('')}${midFirst ? '' : mid}</div>
+      <div class="mrow lower">${midFirst ? mid : ''}${lo.map(btn).join('')}${midFirst ? '' : mid}</div></div>`;
+    return `<div class="mini">${blk('右側', UPPER.slice(0, 8), LOWER.slice(0, 8), false)}${blk('左側', UPPER.slice(8), LOWER.slice(8), true)}</div>`;
+  }
+  const row = (ts, cls) => `<div class="mrow ${cls}">${ts.slice(0, 8).map(btn).join('')}${mid}${ts.slice(8).map(btn).join('')}</div>`;
+  return `<div class="mini">${row(UPPER, '')}${row(LOWER, 'lower')}</div>`;
+}
+function renderSheet() {
+  const box = $('#sheet');
+  if (!sheet) { box.hidden = true; return; }
+  const panel = $('#panel'), y = panel.scrollTop;
+  const html = { item: itemSheet, tooth: toothSheet, wiz: wizSheet, visit: visitSheet, vwiz: vwizSheet, patient: patientSheet, confirm: confirmSheet, backup: backupSheet }[sheet.type]();
+  if (!sheet) { box.hidden = true; return; }
+  const typed = {}; if (panel.dataset.type === sheet.type) panel.querySelectorAll('input[type=text]').forEach((i) => { typed[i.id] = i.value; }); // ほかのボタンを押しても、打ちかけの文字を消さない
+  panel.innerHTML = `<div class="xbar"><button class="xbtn" data-act="${sheet.type === 'confirm' ? 'cno' : 'close'}" aria-label="閉じる">×</button></div>` + html;
+  for (const [k, val] of Object.entries(typed)) { const i = panel.querySelector('#' + k); if (i && !i.value) i.value = val; }
+  panel.dataset.type = sheet.type;
+  box.hidden = false;
+  panel.scrollTop = y;
+}
+function visitButtons(pl, a, list) {
+  return list.length ? `<div class="list-in-sheet">${list.map((v) => `<button class="btn" data-act="visit" data-id="${v.id}">${vnoHTML(pl, a, v)}${linesHTML(v)}${v.done ? `<span class="ph">✓ ${md(v.done)}</span>` : ''}</button>`).join('')}</div>` : '<p class="pv" style="margin:0">まだ治療の順番に入っていません。</p>';
+}
+function itemSheet() {
+  const pl = curPlan(), it = findItem(sheet.id);
+  if (!it) { sheet = null; return ''; }
+  const a = analyze(pl);
+  return `<h3>${markHTML(it, a)}${itemTitleHTML(it)} <small>${esc(it.state || '')}</small></h3>
+    <div class="lbl">治療（完了は「治療の順番」の1日ごとの完了から自動で付きます）</div>
+    <div class="chips">${it.steps.map((x, j) => `<span class="chip${a.sdone[it.id][j] ? ' ok' : ''}${j === a.here[it.id] ? ' here' : ''}">${esc(x.name)}${a.sdone[it.id][j] ? ' ✓' : ''}</span>`).join('<span class="car">→</span>')}</div>
+    <div class="lbl">この歯の治療日</div>
+    ${visitButtons(pl, a, pl.visits.filter((v) => v.lines.some((ln) => lineTouches(it, ln))))}
+    ${unsched(pl, it).length ? `<button class="btn" style="margin-top:8px" data-act="itemOrder">${esc(unsched(pl, it).join('・'))} を治療の順番に入れる</button>` : ''}
+    <div class="lbl">印</div>
+    <div class="seg"><button class="btn${it.mark === 'must' ? ' on' : ''}" data-act="mark" data-v="must">◎ 必ずやる</button><button class="btn${it.mark === 'want' ? ' on' : ''}" data-act="mark" data-v="want">○ できたらやりたい</button><button class="btn${!it.mark ? ' on' : ''}" data-act="mark" data-v="">印なし</button></div>
+    <div class="lbl">メモ</div>
+    <textarea id="memo" data-input="memo" placeholder="例：インプラントは骨の状態を見て">${esc(it.memo)}</textarea>
+    <div class="foot"><button class="btn danger left" data-act="del">削除</button><button class="btn" data-act="edit">内容を直す</button><button class="btn main" data-act="close">閉じる</button></div>`;
+}
+function toothSheet() {
+  const pl = curPlan(), t = sheet.t, a = analyze(pl);
+  const its = pl.items.filter((i) => touches(i, t));
+  const miss = pl.missing.includes(t);
+  return `<h3>${palmer([t])} <small>${toothName(t)}${miss ? '・欠損（MT）' : ''}</small></h3>
+    <div class="lbl">図の治療</div>
+    ${its.length ? `<div class="list-in-sheet">${its.map((i) => `<button class="btn" data-act="item" data-id="${i.id}">${markHTML(i, a)}${itemTitleHTML(i)} ${esc(i.state || '')} ${esc(i.steps.map((x) => x.name).join(' → '))}</button>`).join('')}</div>` : '<p class="pv" style="margin:0">まだありません。</p>'}
+    <div class="lbl">この歯の治療日</div>
+    ${visitButtons(pl, a, pl.visits.filter((v) => v.lines.some((ln) => ln.teeth.includes(t))))}
+    <div class="foot"><button class="btn left" data-act="missing">${miss ? '欠損を取り消す' : '欠損（MT）にする'}</button><button class="btn main" data-act="addTooth">図に追加</button></div>`;
+}
+function wizSheet() {
+  const w = sheet, pl = curPlan(), needSpan = w.steps.some((x) => BRACKET.has(x)), isBr = w.steps.includes('Br');
+  const stTxt = w.states.join(STATE_SEP);
+  const chain = w.steps.map((x) => `<span>${esc(x)}</span>`).join('<span class="car">→</span>');
+  // 治療が未定でも、状態（病名）だけで図に載せられる。どちらも空なら載せる物がないので不可
+  const ok = w.teeth.length && (w.states.length || w.steps.length) && (!needSpan || w.span.length);
+  return `<h3>${w.editId ? '図の治療を直す' : '図に追加'} <small>${palmer(w.teeth, w.abut)}</small></h3>
+    <div class="lbl">① 歯（1回タップ＝選ぶ、2回＝丸で支台歯、3回＝外す。義歯の欠損部はまとめて選ぶ）</div>
+    ${miniGrid(w.teeth, 'wt', pl.missing, w.abut)}
+    <div class="lbl">② 状態（複数可。押した順に「,」で並びます。もう一度押すと外れます）</div>
+    <div class="chain">${stTxt ? `<span>${esc(stTxt)}</span>` : '<span class="ph">例：C2, Pul</span>'}</div>
+    <div class="seg" style="margin:6px 0"><button class="btn" data-act="wspop" ${w.states.length ? '' : 'disabled'}>1つ戻す</button><button class="btn" data-act="wsclear" ${w.states.length ? '' : 'disabled'}>状態を全部消す</button></div>
+    <div class="grid-btns">${STATES.map((x) => `<button class="btn${w.states.includes(x) ? ' on' : ''}" data-act="ws" data-v="${esc(x)}">${esc(x)}</button>`).join('')}</div>
+    <div class="free"><input type="text" id="fs" placeholder="自分で入力"><button class="btn" data-act="wsfree">足す</button></div>
+    <div class="lbl">③ 治療方法（押した順につながります。未定なら空のままでOK）</div>
+    <div class="chain">${chain || '<span class="ph">治療を選ぶと、ここに「Ext → Br」のように並びます</span>'}</div>
+    <div class="seg" style="margin:6px 0"><button class="btn" data-act="wpop" ${w.steps.length ? '' : 'disabled'}>1つ戻す</button><button class="btn" data-act="wclear" ${w.steps.length ? '' : 'disabled'}>治療を全部消す</button></div>
+    ${optButtons('steps', 'wa')}
+    <div class="free"><input type="text" id="fa" placeholder="自分で入力"><button class="btn" data-act="wafree">足す</button></div>
+    ${needSpan ? `<div class="lbl">④ ${isBr ? 'ブリッジの範囲と支台歯（1回タップ＝範囲、2回＝丸で支台歯、3回＝外す）' : '義歯の範囲（タップで選ぶ）'}</div>${isBr ? '' : '<div class="seg" style="margin:0 0 6px"><button class="btn" data-act="wspall" data-v="up">上顎すべて</button><button class="btn" data-act="wspall" data-v="lo">下顎すべて</button></div>'}${miniGrid(w.span, 'wsp', pl.missing, isBr ? w.abut : [])}${isBr && w.span.length ? `<div class="chain" style="margin-top:6px">${palmer(w.span, w.abut)}<span>Br</span></div>` : ''}${isBr && w.span.length && !w.abut.length ? '<p class="warn">支台歯は、歯をもう1回タップすると丸が付きます</p>' : ''}` : ''}
+    <div class="lbl">${needSpan ? '⑤' : '④'} 印</div>
+    <div class="seg"><button class="btn${w.mark === 'must' ? ' on' : ''}" data-act="wm" data-v="must">◎ 必ずやる</button><button class="btn${w.mark === 'want' ? ' on' : ''}" data-act="wm" data-v="want">○ できたらやりたい</button><button class="btn${!w.mark ? ' on' : ''}" data-act="wm" data-v="">印なし</button></div>
+    <p class="pv" style="margin:6px 0 0">番号はまだ付きません。治療の順番の一番下に「未定」で入るので、「順番を決める」で番号を付けてください。</p>
+    ${ok ? '' : `<p class="warn">${!w.teeth.length ? '歯を選んでください' : !w.states.length && !w.steps.length ? '状態か治療を1つ以上選んでください' : '範囲を選んでください'}</p>`}
+    <div class="foot"><button class="btn" data-act="close">やめる</button><button class="btn main" data-act="wsave" ${ok ? '' : 'disabled'}>${w.editId ? '直す' : '図に追加'}</button></div>`;
+}
+function visitSheet() {
+  const pl = curPlan(), v = findVisit(sheet.id);
+  if (!v) { sheet = null; return ''; }
+  const a = analyze(pl), k = a.vst[v.id], n = vnum(pl, v);
+  return `<h3>${vnoHTML(pl, a, v)}${n ? `${n}日目` : '順番は未定'} <small>${v.done ? `完了 ${md(v.done)}` : k === 'next' ? '次回' : k === 'und' ? '「順番を決める」で番号が付きます' : 'これから'}</small></h3>
+    <div class="lines" style="font-size:1.05rem">${linesHTML(v)}</div>
+    <div class="lbl">メモ</div>
+    <textarea id="vmemo" data-input="vmemo" placeholder="例：シーネは前日までに技工所から">${esc(v.memo)}</textarea>
+    <div class="foot"><button class="btn danger left" data-act="vdel">削除</button><button class="btn" data-act="vedit">内容を直す</button>
+      <button class="btn" data-act="vdone" data-id="${v.id}">${v.done ? '完了を取り消す' : '完了にする'}</button><button class="btn main" data-act="close">閉じる</button></div>`;
+}
+function vwizSheet() {
+  const w = sheet, pl = curPlan(), ln = w.lines[w.cur];
+  const ok = w.lines.every((x) => x.procs.length);
+  const ev = w.editId ? findVisit(w.editId) : null, pos = ev ? vnum(pl, ev) : null;
+  return `<h3>${w.editId ? '1日分を直す' : '治療の順番に追加'} <small>${pos ? `${circ(pos)}（${pos}日目）` : '順番は未定（一番下に入ります）'}</small></h3>
+    <div class="lbl">この日の内容${w.lines.length > 1 ? '（タップした行を下で直せます）' : ''}</div>
+    <div class="lines">${w.lines.map((x, i) => `<div class="lnrow${i === w.cur ? ' cur' : ''}"><button class="lnb" data-act="vlsel" data-i="${i}">${palmer(x.teeth, x.abut) || '<span class="ph">歯式なし</span>'}<span class="vp">${x.procs.length ? esc(x.procs.join('、')) : '<span class="ph">処置を選んでください</span>'}</span></button>${w.lines.length > 1 ? `<button class="btn" data-act="vldel" data-i="${i}" aria-label="この行を消す">×</button>` : ''}</div>`).join('')}</div>
+    <div class="seg" style="margin-top:6px"><button class="btn" data-act="vladd">＋ 同じ日に別の歯を足す</button></div>
+    <div class="lbl">${w.lines.length > 1 ? `${w.cur + 1}行目　` : ''}① 歯式（1回タップ＝選ぶ、2回＝丸で支台歯、3回＝外す）</div>
+    ${miniGrid(ln.teeth, 'vt', pl.missing, ln.abut)}
+    <div class="lbl">② 処置（押した順に並びます）</div>
+    <div class="chain">${ln.procs.length ? ln.procs.map((x) => `<span>${esc(x)}</span>`).join('<span class="car">、</span>') : '<span class="ph">下のボタンを押すか、自分で入力してください</span>'}</div>
+    <div class="seg" style="margin:6px 0"><button class="btn" data-act="vppop" ${ln.procs.length ? '' : 'disabled'}>1つ戻す</button><button class="btn" data-act="vpclear" ${ln.procs.length ? '' : 'disabled'}>全部消す</button></div>
+    ${optButtons('procs', 'vp')}
+    <div class="free"><input type="text" id="fv" placeholder="自分で入力（例：プロビ調整）"><button class="btn" data-act="vpfree">足す</button></div>
+    ${ok ? '' : '<p class="warn">処置が入っていない行があります</p>'}
+    <div class="foot"><button class="btn" data-act="close">やめる</button><button class="btn main" data-act="vsave" ${ok ? '' : 'disabled'}>${w.editId ? '直す' : '追加'}</button></div>`;
+}
+function patientSheet() {
+  return `<h3>患者を追加</h3>
+    <label class="field"><span>氏名（漢字・ひらがな・カタカナ・ローマ字のどれでも）</span><input type="text" id="pn" autocomplete="off"></label>
+    <label class="field"><span>カルテ番号</span><input type="text" id="pc" inputmode="numeric" autocomplete="off"></label>
+    <div class="foot"><button class="btn" data-act="close">やめる</button><button class="btn main" data-act="psave">追加</button></div>`;
+}
+// ---- バックアップ：全患者のデータを1つのファイルに書き出す／読み込む（iPad の故障・紛失・Safari のデータ消去に備える） ----
+const pad2 = (n) => String(n).padStart(2, '0');
+function backupBanner() {
+  if (!db.patients.length) return '';
+  const days = db.lastBackupAt ? Math.floor((Date.now() - db.lastBackupAt) / 86400000) : null;
+  if (days !== null && days < 7) return '';
+  return `<div class="banner">${days === null ? 'まだバックアップがありません。' : `最後のバックアップから${days}日たっています。`}iPad の故障や紛失に備えて、院内のパソコンなどへ保存してください。<button class="btn main" data-act="bexport">今すぐバックアップ</button></div>`;
+}
+function backupSheet() {
+  return `<h3>バックアップ</h3>
+    <p style="margin:4px 0 0">全患者の治療計画を1つのファイルにまとめて保存します。iPad では共有の画面が出るので、「ファイルに保存」や AirDrop で院内のパソコンへ送ってください。</p>
+    <p class="pv" style="margin:8px 0 0">最後のバックアップ：${db.lastBackupAt ? new Date(db.lastBackupAt).toLocaleString('ja-JP') : 'まだありません'}</p>
+    <div class="foot" style="justify-content:flex-start;flex-wrap:wrap"><button class="btn main" data-act="bexport">バックアップを書き出す</button>
+      <label class="btn">バックアップから読み込む<input type="file" id="imp" accept="application/json,.json" hidden></label></div>
+    <p class="pv" style="margin:8px 0 0">読み込んでも、今あるデータは消えません。同じ患者は、更新が新しいほうが残ります。</p>
+    <div class="lbl" style="margin-top:18px">練習用</div>
+    <button class="btn danger" data-act="reset">すべて消して見本だけに戻す</button>`;
+}
+// iPad は共有シート（ファイルに保存・AirDrop など）、パソコンはダウンロード
+async function saveFile(file, title) {
+  if (navigator.maxTouchPoints > 0 && navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title }); return; }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(file); a.download = file.name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+async function exportBackup() {
+  const d = new Date(), name = `treatment-plan-backup-${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}-${pad2(d.getHours())}${pad2(d.getMinutes())}.json`;
+  const data = { app: 'treatment-plan', version: 1, exportedAt: d.toISOString(), patients: db.patients, plans: db.plans, custom: db.custom };
+  try { await saveFile(new File([JSON.stringify(data)], name, { type: 'application/json' }), '治療計画のバックアップ'); }
+  catch (err) { if (err && err.name === 'AbortError') return; toast('バックアップを書き出せませんでした：' + err); return; } // AbortError＝共有画面を閉じた
+  db.lastBackupAt = Date.now(); save(); toast('バックアップを書き出しました'); render();
+}
+async function importBackup(file) {
+  let data;
+  try { data = JSON.parse(await file.text()); } catch (e) { toast('ファイルを読み込めませんでした'); return; }
+  if (!data || data.app !== 'treatment-plan' || !Array.isArray(data.patients) || !data.plans) { toast('このアプリのバックアップファイルではありません'); return; }
+  sheet = { type: 'confirm', title: 'バックアップから読み込む', msg: `患者 ${data.patients.length}人分を読み込みます（${data.exportedAt ? new Date(data.exportedAt).toLocaleString('ja-JP') : '日時不明'} の書き出し）。今あるデータは消えず、同じ患者は更新が新しいほうが残ります。`, ok: '読み込む', back: { type: 'backup' },
+    run: () => {
+      let add = 0, upd = 0;
+      for (const p of data.patients) {
+        const pl = data.plans[p.id]; if (!pl) continue;
+        const cur = db.patients.find((x) => x.id === p.id);
+        if (!cur) { db.patients.push(p); db.plans[p.id] = pl; add++; }
+        else if ((pl.updatedAt || 0) > (db.plans[p.id].updatedAt || 0)) { Object.assign(cur, p); db.plans[p.id] = pl; upd++; }
+      }
+      for (const k of ['procs', 'steps']) for (const x of ((data.custom || {})[k] || [])) if (!db.custom[k].includes(x)) db.custom[k].push(x);
+      toast(`読み込みました（追加 ${add}人・更新 ${upd}人）`);
+    } };
+  renderSheet();
+}
+function confirmSheet() { // 確認はページの中で（ポップアップの確認は使えない環境があるため）
+  return `<h3>${esc(sheet.title)}</h3><p style="margin:4px 0 0">${esc(sheet.msg)}</p>
+    <div class="foot"><button class="btn" data-act="cno">やめる</button><button class="btn danger fill" data-act="cok">${esc(sheet.ok)}</button></div>`;
+}
+
+// ---- 知らせ（取り消しつき） ----
+function toast(msg, undo) {
+  const el = $('#toast');
+  el.innerHTML = `<span>${esc(msg)}</span>${undo ? '<button data-act="undo">取り消す</button>' : ''}`;
+  el.hidden = false; toastUndo = undo || null;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; toastUndo = null; }, 4000);
+}
+
+function render() { if (view.pid && !db.plans[view.pid]) view.pid = null; view.pid ? renderPatient() : renderList(); renderSheet(); }
+function commit() { if (view.pid && db.plans[view.pid]) db.plans[view.pid].updatedAt = Date.now(); save(); render(); } // updatedAt：バックアップを読み込むとき、新しいほうを残すため
+if (NARROW.addEventListener) NARROW.addEventListener('change', render); else NARROW.addListener(render);
+
+// ---- 順番変更：長押しで持ち上げて、上下に動かす ----
+let drag = null, lastTouch = 0, suppressClick = 0;
+// ≡ をつかんだときはすぐ持ち上げる。行のほかの所は長押し（0.35秒）で持ち上げる
+function dragStart(row, y, now = false) {
+  drag = { row, startY: y, active: false };
+  const lift = () => {
+    if (!drag) return;
+    const r = row.getBoundingClientRect();
+    Object.assign(drag, { active: true, list: row.parentElement, grab: drag.startY - r.top });
+    row.classList.add('lift');
+    try { if (navigator.vibrate) navigator.vibrate(10); } catch (e) { /* 振動できない端末 */ }
+  };
+  if (now) lift(); else drag.timer = setTimeout(lift, 350);
+}
+function dragMove(y, e) {
+  if (!drag) return;
+  if (!drag.active) { if (Math.abs(y - drag.startY) > 8) { clearTimeout(drag.timer); drag = null; } return; } // 長押し前に動いたらスクロール
+  e.preventDefault();
+  const { row, list } = drag;
+  const top = y - list.getBoundingClientRect().top - drag.grab, center = top + row.offsetHeight / 2;
+  let p = row.previousElementSibling, n = row.nextElementSibling;
+  while (p && !p.classList.contains('r-done') && center < p.offsetTop + p.offsetHeight / 2) { list.insertBefore(row, p); p = row.previousElementSibling; } // 完了した日より上には入れない
+  while (n && center > n.offsetTop + n.offsetHeight / 2) { list.insertBefore(n, row); n = row.nextElementSibling; }
+  row.style.transform = `translateY(${top - row.offsetTop}px)`;
+  if (y < 70) window.scrollBy(0, -12); else if (y > window.innerHeight - 70) window.scrollBy(0, 12);
+}
+function dragEnd() {
+  if (!drag) return;
+  clearTimeout(drag.timer);
+  if (drag.active) {
+    const pl = curPlan(), before = pl.visits.map((v) => [v, v.fixed]);
+    const order = [...drag.list.children].map((r) => r.dataset.id);
+    pl.visits.sort((x, y) => order.indexOf(x.id) - order.indexOf(y.id));
+    // 未定の日を決まった日の間（または一番上）に入れたら、その場所の番号で決まった日にする
+    const mv = findVisit(drag.row.dataset.id), i = pl.visits.indexOf(mv);
+    let fixedNow = false;
+    if (!isFixed(mv) && (i === 0 || isFixed(pl.visits[i - 1])) && pl.visits.slice(i + 1).some(isFixed)) {
+      mv.fixed = true; fixedNow = true;
+      if (view.decide) view.decide.picked = view.decide.picked.filter((x) => x !== mv.id);
+    }
+    settle(pl); // 残りの未定の日は、決まった日の下へ
+    suppressClick = Date.now();
+    const changed = pl.visits.some((v, j) => before[j][0] !== v);
+    if (changed) toast(fixedNow ? `${circ(pl.visits.indexOf(mv) + 1)} に入れました（番号を付け、全体の順番も付け直しました）` : '順番を変えました（図の番号も付け直しました）',
+      () => { pl.visits.splice(0, pl.visits.length, ...before.map(([v, f]) => { v.fixed = f; return v; })); });
+    drag = null;
+    return commit();
+  }
+  drag = null;
+}
+// 並べ替えは「順番を決める」の中で：長押しで持ち上げて上下に動かす（短く押すと番号付け）
+const dragRow = (e) => { const r = view.decide ? e.target.closest('.decide .vrow') : null; return r && !(findVisit(r.dataset.id) || {}).done ? r : null; }; // 完了した日は動かさない
+document.addEventListener('touchstart', (e) => { lastTouch = Date.now(); const r = dragRow(e); if (r && e.touches.length === 1) dragStart(r, e.touches[0].clientY, !!e.target.closest('.grip')); }, { passive: true });
+document.addEventListener('touchmove', (e) => { if (drag) dragMove(e.touches[0].clientY, e); }, { passive: false });
+document.addEventListener('touchend', dragEnd);
+document.addEventListener('touchcancel', dragEnd);
+document.addEventListener('mousedown', (e) => { if (Date.now() - lastTouch < 800 || e.button !== 0) return; const r = dragRow(e); if (r) { e.preventDefault(); dragStart(r, e.clientY, !!e.target.closest('.grip')); } });
+document.addEventListener('mousemove', (e) => { if (drag && Date.now() - lastTouch > 800) dragMove(e.clientY, e); });
+document.addEventListener('mouseup', () => { if (Date.now() - lastTouch > 800) dragEnd(); });
+document.addEventListener('contextmenu', (e) => { if (view.decide && e.target.closest('.vrow')) e.preventDefault(); });
+
+// ---- 操作 ----
+document.addEventListener('click', (e) => {
+  if (Date.now() - suppressClick < 500) return;
+  const el = e.target.closest('[data-act]');
+  if (!el) { if (e.target.id === 'sheet') { sheet = null; renderSheet(); } return; }
+  const a = el.dataset.act, id = el.dataset.id, t = el.dataset.t ? +el.dataset.t : null, v = el.dataset.v;
+  const pl = view.pid ? curPlan() : null;
+  if (view.decide && ['visit', 'item', 'tooth', 'add', 'vadd', 'print'].includes(a)) { toast('順番を決めている途中です。「決定」か「終わる」を押してから操作してください'); return; }
+  switch (a) {
+    case 'open': view.pid = id; view.decide = null; view.q = ''; touchRecent(id); window.scrollTo(0, 0); return render();
+    case 'qclear': view.q = ''; render(); $('#pq').focus(); return;
+    case 'back': view.pid = null; view.decide = null; sheet = null; return render();
+    case 'reset':
+      sheet = { type: 'confirm', title: '見本の状態に戻す', msg: 'すべての患者のデータが消え、見本の2人だけになります。元に戻せません（自分で作った項目のボタンは残ります）。先にバックアップを書き出してください。', ok: 'すべて消す', run: () => { const c = db.custom, lb = db.lastBackupAt; db = seed(); db.custom = c; db.lastBackupAt = lb; view.pid = null; view.q = ''; } };
+      return renderSheet();
+    case 'cok': { const run = sheet.run; sheet = null; run(); return commit(); }
+    case 'cno': sheet = sheet.back || null; return renderSheet();
+    case 'addPatient': sheet = { type: 'patient' }; return renderSheet();
+    case 'backup': sheet = { type: 'backup' }; return renderSheet();
+    case 'bexport': exportBackup(); return;
+    case 'pdel': {
+      const p = db.patients.find((x) => x.id === view.pid);
+      sheet = { type: 'confirm', title: '患者を削除', msg: `${p.name} 様の治療計画をすべて削除します。元に戻せません（バックアップを書き出していれば、そこから戻せます）。`, ok: '削除する',
+        run: () => { db.patients = db.patients.filter((x) => x.id !== p.id); delete db.plans[p.id]; db.recent = (db.recent || []).filter((x) => x !== p.id); view.pid = null; toast(`${p.name} 様を削除しました`); } };
+      return renderSheet();
+    }
+    case 'psave': {
+      const name = $('#pn').value.trim(); if (!name) { toast('氏名を入れてください'); $('#pn').focus(); return; }
+      const cno = $('#pc').value.normalize('NFKC').trim();
+      if (cno && db.patients.some((x) => x.chartNo === cno)) toast(`カルテ番号 ${cno} の患者がもう1人います。確かめてください`);
+      // ふりがなは入れない（氏名は漢字・かな・ローマ字どれでも）。kana はペリオと同じ形にするため空で残す
+      const p = { id: uid(), chartNo: cno, name, kana: '', birth: '', note: '', createdAt: Date.now() };
+      db.patients.push(p); db.plans[p.id] = { version: 1, missing: [], items: [], visits: [] };
+      sheet = null; view.pid = p.id; touchRecent(p.id); return commit();
+    }
+    case 'close': sheet = null; return renderSheet();
+    case 'undo': if (toastUndo) { toastUndo(); toastUndo = null; $('#toast').hidden = true; commit(); } return;
+    case 'print': {
+      if (window.self !== window.top) { toast('この画面の中からは印刷できません。Safari などで直接開いて印刷してください'); return; } // Artifact の枠の中は印刷できない
+      window.print(); return;
+    }
+    // 順番を決める：未定の日を、押した順に番号を付ける
+    case 'decide': view.decide = { picked: [], all: false }; return render();
+    case 'dcancel': view.decide = null; return render();
+    case 'dpick': { const d = view.decide, i = d.picked.indexOf(id); if (i >= 0) d.picked.splice(i, 1); else d.picked.push(id); return render(); }
+    case 'dpop': view.decide.picked.pop(); return render();
+    case 'dclear': view.decide.picked = []; return render();
+    case 'dall': view.decide = { picked: [], all: !view.decide.all }; return render();
+    case 'dok': {
+      const d = view.decide, before = pl.visits.map((v) => [v, v.fixed]);
+      const keep = (v) => (d.all ? !!v.done : isFixed(v));
+      const fixedVs = pl.visits.filter(keep), picked = d.picked.map(findVisit).filter((v) => v && !keep(v)), rest = pl.visits.filter((v) => !keep(v) && !picked.includes(v));
+      if (d.all) rest.forEach((v) => { v.fixed = false; });
+      picked.forEach((v) => { v.fixed = true; });
+      pl.visits.splice(0, pl.visits.length, ...fixedVs, ...picked, ...rest);
+      view.decide = null;
+      toast(`順番を決めました（${picked.length}日分。図の番号も付けました）${rest.length ? `。未定が${rest.length}日残っています` : ''}`, () => { pl.visits.splice(0, pl.visits.length, ...before.map(([v, f]) => { v.fixed = f; return v; })); });
+      return commit();
+    }
+    case 'item': sheet = { type: 'item', id }; return renderSheet();
+    case 'tooth': sheet = { type: 'tooth', t }; return renderSheet();
+    case 'visit': sheet = { type: 'visit', id }; return renderSheet();
+    // 1日ごとの完了
+    case 'vdone': {
+      const vv = findVisit(id), before = vv.done, bf = vv.fixed, order = [...pl.visits], lab = vlabel(pl, vv);
+      vv.done = before ? null : today();
+      if (vv.done) { vv.fixed = true; settle(pl); } // 完了した日は順番が決まった扱い
+      toast(`${lab} ${linesText(vv)}：${vv.done ? '完了にしました' : '完了を取り消しました'}`, () => { vv.done = before; vv.fixed = bf; pl.visits.splice(0, pl.visits.length, ...order); });
+      return commit();
+    }
+    case 'vdel': {
+      const vv = findVisit(sheet.id), i = pl.visits.indexOf(vv);
+      sheet = { type: 'confirm', title: '治療の順番から削除', msg: `${vlabel(pl, vv)} ${linesText(vv)} を削除します。`, ok: '削除する', back: sheet,
+        run: () => { pl.visits.splice(i, 1); toast('削除しました', () => { pl.visits.splice(i, 0, vv); }); } };
+      return renderSheet();
+    }
+    case 'vadd': sheet = { type: 'vwiz', editId: null, cur: 0, lines: [{ teeth: [], procs: [], abut: [] }] }; return renderSheet();
+    case 'vedit': { const vv = findVisit(sheet.id); sheet = { type: 'vwiz', editId: vv.id, cur: 0, lines: vv.lines.map((x) => ({ teeth: [...x.teeth], procs: [...x.procs], abut: [...(x.abut || [])] })) }; return renderSheet(); }
+    case 'vlsel': sheet.cur = +el.dataset.i; return renderSheet();
+    case 'vladd': sheet.lines.push({ teeth: [], procs: [], abut: [] }); sheet.cur = sheet.lines.length - 1; return renderSheet();
+    case 'vldel': { const i = +el.dataset.i; sheet.lines.splice(i, 1); if (i < sheet.cur) sheet.cur--; sheet.cur = Math.min(sheet.cur, sheet.lines.length - 1); return renderSheet(); }
+    case 'vt': { // 選ぶ → 丸（支台歯） → 外す の順に切り替わる
+      const ln = sheet.lines[sheet.cur];
+      if (!ln.teeth.includes(t)) ln.teeth.push(t);
+      else if (!ln.abut.includes(t)) ln.abut.push(t);
+      else { ln.teeth = ln.teeth.filter((x) => x !== t); ln.abut = ln.abut.filter((x) => x !== t); }
+      return renderSheet();
+    }
+    case 'vp': case 'vpfree': {
+      const ln = sheet.lines[sheet.cur], xs = a === 'vp' ? [v] : splitStates($('#fv').value).map((y) => canon(y, optList('procs'))); if (!xs.length) return;
+      if (a === 'vpfree') $('#fv').value = '';
+      for (const x of xs) { ln.procs.push(x); if (/^br/i.test(x) && !ln.abut.length) ln.abut = ends(ln.teeth); } // Br は両端を支台歯の初期値に
+      return renderSheet();
+    }
+    case 'vppop': sheet.lines[sheet.cur].procs.pop(); return renderSheet();
+    case 'vpclear': sheet.lines[sheet.cur].procs = []; return renderSheet();
+    case 'optnew': sheet.optEdit = el.dataset.k; renderSheet(); { const f = $('#fo'); if (f) f.focus(); } return;
+    case 'optclose': sheet.optEdit = null; return renderSheet();
+    case 'optadd': {
+      const k = el.dataset.k, x = $('#fo').value.trim(); if (!x) return;
+      if (optList(k).some((y) => norm(y) === norm(x))) { toast(`「${x}」はもうあります`); return; }
+      db.custom[k].push(x); save(); sheet.optEdit = null; toast(`「${x}」のボタンを作りました。次からも使えます`); return renderSheet();
+    }
+    case 'optdel': db.custom[el.dataset.k].splice(+el.dataset.i, 1); save(); return renderSheet();
+    case 'vsave': {
+      // Br で支台歯の丸が無いときは、両端を支台歯にする
+      const w = sheet, lines = w.lines.map((x) => { const ab = x.abut.filter((t) => x.teeth.includes(t)); return { teeth: [...x.teeth].sort(byCol), procs: x.procs, abut: (ab.length || !x.procs.some((q) => /^br/i.test(q.trim())) ? ab : ends(x.teeth)).sort(byCol) }; });
+      const fig = (n) => (n ? '。図にも追加しました' : '');
+      if (w.editId) { const vv = findVisit(w.editId); vv.lines = lines; const n = visitToItems(pl, vv); sheet = { type: 'visit', id: w.editId }; toast('直しました' + fig(n)); }
+      else { const vv = { id: uid(), done: null, fixed: false, memo: '', lines }; pl.visits.push(vv); const n = visitToItems(pl, vv); sheet = null; toast(`一番下に「未定」で追加しました${fig(n)}。「順番を決める」で番号を付けます`); }
+      return commit();
+    }
+    // 図の治療
+    case 'mark': findItem(sheet.id).mark = v; return commit();
+    case 'itemOrder': { const ns = itemToVisits(pl, findItem(sheet.id)); toast(ns.length ? `治療の順番の一番下に「未定」で入れました（${ns.length}日分）` : 'もう治療の順番に入っています'); return commit(); }
+    case 'del': {
+      const it = findItem(sheet.id), i = pl.items.indexOf(it);
+      sheet = { type: 'confirm', title: '図から削除', msg: `${teethName(it.teeth)}（${[it.state, ...it.steps.map((x) => x.name)].filter(Boolean).join(' → ')}）を図から削除します。治療の順番はそのまま残ります。`, ok: '削除する', back: sheet,
+        run: () => { pl.items.splice(i, 1); toast('削除しました', () => { pl.items.splice(i, 0, it); }); } };
+      return renderSheet();
+    }
+    case 'missing': { const i = pl.missing.indexOf(sheet.t); if (i >= 0) pl.missing.splice(i, 1); else pl.missing.push(sheet.t); return commit(); }
+    case 'add': sheet = { type: 'wiz', editId: null, teeth: [], states: [], steps: [], span: [], abut: [], mark: '' }; return renderSheet();
+    case 'addTooth': sheet = { type: 'wiz', editId: null, teeth: [sheet.t], states: pl.missing.includes(sheet.t) ? ['MT'] : [], steps: [], span: [], abut: [], mark: '' }; return renderSheet();
+    case 'edit': {
+      const it = findItem(sheet.id);
+      const eab = it.steps.some((x) => x.name === 'Br') || Array.isArray(it.abut) ? brAbut(it) : []; // 支台歯も①に選んだ状態で開く
+      sheet = { type: 'wiz', editId: it.id, teeth: [...new Set([...it.teeth, ...eab])].sort(byCol), states: splitStates(it.state), steps: it.steps.map((x) => x.name), span: [...(it.span || [])], abut: [...eab], mark: it.mark };
+      return renderSheet();
+    }
+    case 'wt': { // 選ぶ → 丸（支台歯） → 外す。ブリッジの範囲（④）にも同じ歯を合わせる
+      const w = sheet, br = w.steps.includes('Br');
+      if (!w.teeth.includes(t)) { w.teeth.push(t); if (br && !w.span.includes(t)) w.span.push(t); }
+      else if (!w.abut.includes(t)) { w.abut.push(t); if (br && !w.span.includes(t)) w.span.push(t); }
+      else { w.teeth = w.teeth.filter((x) => x !== t); w.abut = w.abut.filter((x) => x !== t); if (br) w.span = w.span.filter((x) => x !== t); }
+      return renderSheet();
+    }
+    case 'wspall': { // 義歯：上顎（下顎）を全部入れる。全部入っていれば外す
+      const jaw = v === 'up' ? UPPER : LOWER, all = jaw.every((x) => sheet.span.includes(x));
+      sheet.span = all ? sheet.span.filter((x) => !jaw.includes(x)) : [...new Set([...sheet.span, ...jaw])];
+      return renderSheet();
+    }
+    case 'wsp': { // ブリッジは 範囲 → 丸（支台歯） → 外す の順に切り替わる。義歯は範囲のオン・オフだけ
+      const w = sheet, inSpan = w.span.includes(t), isAb = w.abut.includes(t);
+      if (!inSpan) w.span.push(t);
+      else if (w.steps.includes('Br') && !isAb) w.abut.push(t);
+      else { w.span = w.span.filter((x) => x !== t); w.abut = w.abut.filter((x) => x !== t); }
+      return renderSheet();
+    }
+    case 'ws': { const s = sheet.states, i = s.indexOf(v); if (i >= 0) s.splice(i, 1); else s.push(v); return renderSheet(); }
+    case 'wsfree': { for (const x of splitStates($('#fs').value).map((y) => canon(y, STATES))) if (!sheet.states.some((y) => norm(y) === norm(x))) sheet.states.push(x); $('#fs').value = ''; return renderSheet(); }
+    case 'wspop': sheet.states.pop(); return renderSheet();
+    case 'wsclear': sheet.states = []; return renderSheet();
+    case 'wa': case 'wafree': {
+      const xs = a === 'wa' ? [v] : splitStates($('#fa').value).map((y) => canon(y, optList('steps'))); if (!xs.length) return;
+      if (a === 'wafree') $('#fa').value = '';
+      for (const x of xs) { sheet.steps.push(x); if (BRACKET.has(x) && !sheet.span.length) sheet.span = [...sheet.teeth]; }
+      return renderSheet();
+    }
+    case 'wpop': sheet.steps.pop(); return renderSheet();
+    case 'wclear': sheet.steps = []; return renderSheet();
+    case 'wm': sheet.mark = v; return renderSheet();
+    case 'wsave': {
+      const w = sheet, needSpan = w.steps.some((x) => BRACKET.has(x)), state = w.states.join(STATE_SEP);
+      const span = needSpan ? [...w.span].sort(byCol) : null, steps = w.steps.map((name) => ({ name }));
+      // 支台歯：ブリッジなら範囲の中の丸。ブリッジ以外でも①で丸を付けた歯は残す
+      const ab = w.abut.filter((x) => w.teeth.includes(x) || (span || []).includes(x)).sort(byCol);
+      const abut = needSpan && w.steps.includes('Br') ? ab.filter((x) => span.includes(x)) : ab.length ? ab : null;
+      if (w.editId) {
+        const it = Object.assign(findItem(w.editId), { teeth: [...w.teeth].sort(byCol), state, steps, span, abut, mark: w.mark });
+        const ns = itemToVisits(pl, it);
+        sheet = { type: 'item', id: w.editId }; toast(ns.length ? '直しました。足した治療は治療の順番の一番下に「未定」で入れました' : '直しました');
+      } else {
+        const it = { id: uid(), mark: w.mark, teeth: [...w.teeth].sort(byCol), state, steps, span, abut, memo: '' };
+        pl.items.push(it);
+        const ns = itemToVisits(pl, it);
+        sheet = null; toast(ns.length ? `図に追加し、治療の順番の一番下に「未定」で入れました${ns.length > 1 ? `（${ns.length}日分。1日にまとめるときは日を直してください）` : ''}` : '図に追加しました');
+      }
+      return commit();
+    }
+  }
+});
+document.addEventListener('input', (e) => {
+  if (e.target.id === 'pq') { view.q = e.target.value; $('#plbody').innerHTML = listBody(); $('#qx').hidden = !view.q; return; } // 入力欄は描き直さない（打っている途中で消えないように）
+  if (!sheet) return;
+  if (e.target.dataset.input === 'memo' && sheet.type === 'item') { findItem(sheet.id).memo = e.target.value; save(); }
+  if (e.target.dataset.input === 'vmemo' && sheet.type === 'visit') { findVisit(sheet.id).memo = e.target.value; save(); }
+});
+// 自由入力欄で Enter を押したら、横の「足す」などと同じ
+const ENTER_ACT = { fs: 'wsfree', fa: 'wafree', fv: 'vpfree', fo: 'optadd', pn: 'psave', pc: 'psave' };
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.isComposing && ENTER_ACT[e.target.id]) { e.preventDefault(); const b = $(`#panel [data-act="${ENTER_ACT[e.target.id]}"]`); if (b) b.click(); }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.target.id !== 'pq' || e.key !== 'Enter' || e.isComposing) return;
+  const hits = db.patients.filter((p) => matchQ(p, normQ(view.q)));
+  if (hits.length === 1) { e.preventDefault(); view.pid = hits[0].id; view.decide = null; touchRecent(view.pid); window.scrollTo(0, 0); render(); }
+});
+document.addEventListener('change', (e) => { if (e.target.id === 'imp' && e.target.files[0]) importBackup(e.target.files[0]); });
+document.addEventListener('change', (e) => { if (e.target.dataset.input && view.pid) renderPatient(); });
+
+render();
+</script>
